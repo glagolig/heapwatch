@@ -271,6 +271,22 @@ void* realloc(void *ptr, size_t size)
         return RealRealloc(ptr, size);
     }
 
+    if(ptr == NULL) 
+    {
+        STACK_ID stackId;
+        inCall = 1;
+        __sync_add_and_fetch(&gReallocCount, 1);
+        PreloadLog("realloc(NULL, %d) called...\n", size);
+        stackId = ReferenceStack();
+        blockHdr = RealMalloc(size + sizeof(BLOCK_HDR));
+        blockHdr->magic = MAGIC;
+        blockHdr->stackId = stackId;
+        result = (void*)((char*)blockHdr + sizeof(BLOCK_HDR));
+        PreloadLog("realloc(NULL, %d) returning %p\n", size, result);
+        inCall = 0;
+        return result;
+    }
+
     blockHdr = (BLOCK_HDR*)((char*)ptr - sizeof(BLOCK_HDR));
     if(blockHdr->magic != MAGIC)
     {
