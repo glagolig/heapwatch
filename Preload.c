@@ -12,6 +12,20 @@
 
 #include "StackStorage.h"
 
+// note: __sync_add_and_fetch does not work
+// if binary is built on Linux RHEL-4
+static int atomic_add_return(int *v, int i)
+{
+int rc;
+__asm__ (
+"lock\n\t"
+"xaddl %0,(%1)"
+:"=r" (rc)
+:"r" (v), "0" (i)
+:"memory" );
+return rc+i;
+}
+
 static int gLogCount = 0;
 static int gIsLogEnabled = 1;
 #define LOG_COUNT_LIMIT 10
@@ -180,7 +194,7 @@ void* malloc(size_t size)
     }
     inCall = 1;
 
-    __sync_add_and_fetch(&gMallocCount, 1);
+    atomic_add_return(&gMallocCount, 1);
     int isDumpRequested = 0;
     if(gIsDumpRequested)
     {
@@ -226,7 +240,7 @@ void* calloc(size_t nmemb, size_t size)
     }
     inCall = 1;
 
-    __sync_add_and_fetch(&gCallocCount, 1);
+    atomic_add_return(&gCallocCount, 1);
     int isDumpRequested = 0;
     if(gIsDumpRequested)
     {
@@ -275,7 +289,7 @@ void* realloc(void *ptr, size_t size)
     {
         STACK_ID stackId;
         inCall = 1;
-        __sync_add_and_fetch(&gReallocCount, 1);
+        atomic_add_return(&gReallocCount, 1);
         PreloadLog("realloc(NULL, %d) called...\n", size);
         stackId = ReferenceStack();
         blockHdr = RealMalloc(size + sizeof(BLOCK_HDR));
@@ -290,12 +304,12 @@ void* realloc(void *ptr, size_t size)
     blockHdr = (BLOCK_HDR*)((char*)ptr - sizeof(BLOCK_HDR));
     if(blockHdr->magic != MAGIC)
     {
-        __sync_add_and_fetch(&gMismatchedReallocCount, 1);
+        atomic_add_return(&gMismatchedReallocCount, 1);
         return RealRealloc(ptr, size);
     }
     
     inCall = 1;
-    __sync_add_and_fetch(&gReallocCount, 1);
+    atomic_add_return(&gReallocCount, 1);
 
     PreloadLog("realloc stackId: %08x, orig.size: %d, act.size: %d, ptr: %p, user ptr: %p\n",
                blockHdr->stackId,
@@ -321,12 +335,12 @@ void free(void *ptr)
     blockHdr = (BLOCK_HDR*)((char*)ptr - sizeof(BLOCK_HDR));
     if(blockHdr->magic != MAGIC)
     {
-        __sync_add_and_fetch(&gMismatchedFreeCount, 1);
+        atomic_add_return(&gMismatchedFreeCount, 1);
         return RealFree(ptr);
     }
 
     inCall = 1;
-    __sync_add_and_fetch(&gFreeCount, 1);
+    atomic_add_return(&gFreeCount, 1);
     int isDumpRequested = 0;
     if(gIsDumpRequested)
     {
@@ -357,13 +371,13 @@ void free(void *ptr)
 
 int posix_memalign(void** memptr, size_t alignment, size_t size)
 {
-    __sync_add_and_fetch(&gMemalignCount, 1);
+    atomic_add_return(&gMemalignCount, 1);
     return RealPosixMemalign(memptr, alignment, size);
 }
 
 void* valloc(size_t size)
 {
-    __sync_add_and_fetch(&gVallocCount, 1);
+    atomic_add_return(&gVallocCount, 1);
     return RealValloc(size);
 }
 

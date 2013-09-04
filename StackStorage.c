@@ -11,6 +11,20 @@
 
 #include "BoundedPriQueue.h"
 
+// note: __sync_add_and_fetch does not work
+// if binary is built on Linux RHEL-4
+static int atomic_add_return(int *v, int i)
+{
+int rc;
+__asm__ (
+"lock\n\t"
+"xaddl %0,(%1)"
+:"=r" (rc)
+:"r" (v), "0" (i)
+:"memory" );
+return rc+i;
+}
+
 extern void* (*RealMalloc)(size_t size);
 extern void* (*RealCalloc)(size_t nmemb, size_t size);
 extern void* (*RealRealloc)(void *ptr, size_t size);
@@ -193,7 +207,7 @@ STACK_ID ReferenceStack()
     if(entry != NULL)
     {
 #ifndef _WIN32
-        __sync_add_and_fetch(&entry->refCount, 1);
+        atomic_add_return(&entry->refCount, 1);
 #else
         entry->refCount++;
 #endif
@@ -244,7 +258,7 @@ void DereferenceStack(STACK_ID stackId)
 
     entry = entriesById[stackId];
 #ifndef _WIN32
-    __sync_sub_and_fetch(&entry->refCount, 1);
+    atomic_add_return(&entry->refCount, -1);
 #else
     entry->refCount--;
 #endif
