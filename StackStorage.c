@@ -124,11 +124,11 @@ STACK_ID GetNextStackId()
 unsigned long HashFn(void** stackData, int stackDataSize)
 {
     int i;
-    long long result = 0;
+    unsigned long long result = 0;
 
     for(i=0; i<stackDataSize; i++)
     {
-        long long tmp = (long long)stackData[i];
+        unsigned long long tmp = (unsigned long long)stackData[i];
         tmp = (tmp << 21) - (tmp << 3) - tmp;
         result ^= tmp;
     }
